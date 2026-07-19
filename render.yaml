@@ -1,0 +1,29 @@
+# Blueprint de Render (https://render.com/docs/blueprint-spec).
+# Despliega los dos servicios en el plan gratuito: la API mock y la app Blazor,
+# ya conectadas entre sí mediante ApiSettings__BaseUrl.
+services:
+  - type: web
+    name: pruebatecnica-mockapi
+    runtime: docker
+    dockerfilePath: ./src/PruebaTecnica.MockApi/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/movimientos
+
+  - type: web
+    name: pruebatecnica-web
+    runtime: docker
+    dockerfilePath: ./src/PruebaTecnica.Web/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: ApiSettings__Endpoint
+        value: /api/movimientos
+      - key: ApiSettings__TimeoutSeconds
+        value: "20"
+      # Render asigna el subdominio a partir de "name" (puede llevar un sufijo si ya está tomado).
+      # Verifica la URL real del servicio pruebatecnica-mockapi en el dashboard tras el primer
+      # despliegue y ajusta este valor si difiere.
+      - key: ApiSettings__BaseUrl
+        value: https://pruebatecnica-mockapi.onrender.com

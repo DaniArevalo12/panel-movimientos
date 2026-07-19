@@ -1,0 +1,271 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IMovimientoService MovimientoService
+
+<PageTitle>Movimientos · Panel de Inventario</PageTitle>
+
+<div class="page">
+    <header class="page-header">
+        <div class="page-header__titles">
+            <h1>Movimientos</h1>
+            <p class="page-header__subtitle">Catálogo de tipos de movimiento del sistema de inventario</p>
+        </div>
+        <ThemeToggle />
+    </header>
+
+    <section class="toolbar">
+        <div class="toolbar__status">
+            <span class="status-indicator @(_errorMensaje is null ? "status-indicator--online" : "status-indicator--offline")">
+                <span class="status-indicator__dot"></span>
+                @(_errorMensaje is null ? "Conectado" : "Sin conexión")
+            </span>
+
+            @if (_movimientos is not null)
+            {
+                <span class="toolbar__meta">@_movimientos.Count registro(s)</span>
+            }
+
+            @if (_ultimaActualizacion is not null)
+            {
+                <span class="toolbar__meta">Actualizado @_ultimaActualizacion.Value.ToString("HH:mm:ss")</span>
+            }
+        </div>
+
+        <div class="toolbar__actions">
+            <div class="search-box">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m21 21-4.3-4.3" stroke-linecap="round" />
+                </svg>
+                <input type="search"
+                       placeholder="Buscar por código o descripción..."
+                       value="@_busqueda"
+                       @oninput="OnBusquedaCambiada" />
+            </div>
+
+            <label class="auto-refresh-toggle">
+                <input type="checkbox" checked="@_autoRefrescoActivo" @onchange="OnAutoRefrescoCambiadoAsync" />
+                Auto-refrescar
+            </label>
+
+            <button type="button" class="btn btn--secondary" disabled="@_cargando" @onclick="() => CargarMovimientosAsync()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="@(_cargando ? "spin" : "")">
+                    <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Refrescar
+            </button>
+        </div>
+    </section>
+
+    <section class="content-panel">
+        @if (_cargando && _movimientos is null)
+        {
+            <TableSkeleton />
+        }
+        else if (_errorMensaje is not null)
+        {
+            <ErrorState Mensaje="@_errorMensaje" OnReintentar="() => CargarMovimientosAsync()" />
+        }
+        else if (MovimientosVisibles.Count == 0 && string.IsNullOrWhiteSpace(_busqueda))
+        {
+            <EmptyState />
+        }
+        else if (MovimientosVisibles.Count == 0)
+        {
+            <EmptyState Mensaje="@($"No hay resultados para \"{_busqueda}\".")" />
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" @onclick='() => OrdenarPor("Codigo")' class="sortable">
+                                Código @ObtenerIndicadorOrden("Codigo")
+                            </th>
+                            <th scope="col" @onclick='() => OrdenarPor("Descripcion")' class="sortable">
+                                Descripción @ObtenerIndicadorOrden("Descripcion")
+                            </th>
+                            <th scope="col" @onclick='() => OrdenarPor("VActiva")' class="sortable">
+                                Estado @ObtenerIndicadorOrden("VActiva")
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var movimiento in MovimientosVisibles)
+                        {
+                            <tr>
+                                <td class="cell-codigo">@movimiento.Codigo</td>
+                                <td>@movimiento.Descripcion</td>
+                                <td><EstadoBadge Activa="movimiento.VActiva" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private const int IntervaloAutoRefrescoSegundos = 30;
+
+    private readonly CancellationTokenSource _cts = new();
+    private PeriodicTimer? _autoRefrescoTimer;
+    private Task? _autoRefrescoTask;
+
+    private IReadOnlyList<Movimiento>? _movimientos;
+    private bool _cargando;
+    private string? _errorMensaje;
+    private DateTime? _ultimaActualizacion;
+    private string _busqueda = string.Empty;
+    private bool _autoRefrescoActivo;
+    private string _columnaOrden = "Codigo";
+    private bool _ordenAscendente = true;
+
+    private IReadOnlyList<Movimiento> MovimientosVisibles => FiltrarYOrdenar(_movimientos ?? []);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarMovimientosAsync();
+    }
+
+    private async Task CargarMovimientosAsync()
+    {
+        _cargando = true;
+        StateHasChanged();
+
+        var resultado = await MovimientoService.ObtenerMovimientosAsync(_cts.Token);
+
+        if (resultado.IsSuccess)
+        {
+            _movimientos = resultado.Value;
+            _errorMensaje = null;
+        }
+        else
+        {
+            _errorMensaje = resultado.ErrorMessage;
+        }
+
+        _ultimaActualizacion = DateTime.Now;
+        _cargando = false;
+        StateHasChanged();
+    }
+
+    private void OnBusquedaCambiada(ChangeEventArgs args)
+    {
+        _busqueda = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OrdenarPor(string columna)
+    {
+        if (_columnaOrden == columna)
+        {
+            _ordenAscendente = !_ordenAscendente;
+        }
+        else
+        {
+            _columnaOrden = columna;
+            _ordenAscendente = true;
+        }
+    }
+
+    private string ObtenerIndicadorOrden(string columna)
+    {
+        if (_columnaOrden != columna)
+        {
+            return string.Empty;
+        }
+
+        return _ordenAscendente ? "↑" : "↓";
+    }
+
+    private IReadOnlyList<Movimiento> FiltrarYOrdenar(IReadOnlyList<Movimiento> origen)
+    {
+        IEnumerable<Movimiento> resultado = origen;
+
+        if (!string.IsNullOrWhiteSpace(_busqueda))
+        {
+            resultado = resultado.Where(m =>
+                m.Descripcion.Contains(_busqueda, StringComparison.OrdinalIgnoreCase) ||
+                m.Codigo.ToString().Contains(_busqueda, StringComparison.OrdinalIgnoreCase));
+        }
+
+        resultado = _columnaOrden switch
+        {
+            "Codigo" => _ordenAscendente ? resultado.OrderBy(m => m.Codigo) : resultado.OrderByDescending(m => m.Codigo),
+            "VActiva" => _ordenAscendente ? resultado.OrderBy(m => m.VActiva) : resultado.OrderByDescending(m => m.VActiva),
+            _ => _ordenAscendente
+                ? resultado.OrderBy(m => m.Descripcion, StringComparer.OrdinalIgnoreCase)
+                : resultado.OrderByDescending(m => m.Descripcion, StringComparer.OrdinalIgnoreCase),
+        };
+
+        return resultado.ToList();
+    }
+
+    private async Task OnAutoRefrescoCambiadoAsync(ChangeEventArgs args)
+    {
+        _autoRefrescoActivo = args.Value is true;
+
+        if (_autoRefrescoActivo)
+        {
+            IniciarAutoRefresco();
+        }
+        else
+        {
+            await DetenerAutoRefrescoAsync();
+        }
+    }
+
+    private void IniciarAutoRefresco()
+    {
+        _autoRefrescoTimer = new PeriodicTimer(TimeSpan.FromSeconds(IntervaloAutoRefrescoSegundos));
+        _autoRefrescoTask = EjecutarAutoRefrescoAsync(_autoRefrescoTimer, _cts.Token);
+    }
+
+    private async Task EjecutarAutoRefrescoAsync(PeriodicTimer timer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await CargarMovimientosAsync();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelación esperada al desactivar el auto-refresco o al cerrar el componente.
+        }
+    }
+
+    private async Task DetenerAutoRefrescoAsync()
+    {
+        _autoRefrescoTimer?.Dispose();
+        _autoRefrescoTimer = null;
+
+        if (_autoRefrescoTask is not null)
+        {
+            try
+            {
+                await _autoRefrescoTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Esperado al cancelar el ciclo de auto-refresco.
+            }
+        }
+
+        _autoRefrescoTask = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _autoRefrescoTimer?.Dispose();
+        _cts.Dispose();
+    }
+}

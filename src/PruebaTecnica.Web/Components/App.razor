@@ -1,0 +1,29 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["PruebaTecnica.Web.styles.css"]" />
+    <ImportMap />
+    <HeadOutlet />
+    <script>
+        // Aplica el tema guardado antes del primer render para evitar parpadeo (FOUC).
+        (function () {
+            var tema = localStorage.getItem('pt-theme') ||
+                (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', tema);
+        })();
+    </script>
+</head>
+
+<body>
+    <Routes />
+    <ReconnectModal />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>

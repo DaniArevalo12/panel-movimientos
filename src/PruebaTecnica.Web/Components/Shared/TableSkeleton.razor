@@ -1,0 +1,17 @@
+@* Skeleton de carga: evita el parpadeo de un spinner aislado y comunica la forma final de la tabla. *@
+
+<div class="skeleton-table" aria-busy="true" aria-label="Cargando movimientos">
+    @for (var i = 0; i < Filas; i++)
+    {
+        <div class="skeleton-row">
+            <span class="skeleton-cell skeleton-cell--sm"></span>
+            <span class="skeleton-cell skeleton-cell--lg"></span>
+            <span class="skeleton-cell skeleton-cell--sm"></span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Filas { get; set; } = 8;
+}

@@ -1,0 +1,58 @@
+## .NET / Visual Studio / Rider / VS Code
+
+bin/
+obj/
+out/
+
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# ASP.NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# User-specific / secrets
+appsettings.*.local.json
+secrets.json
+*.pfx
+
+# Rider
+*.sln.iml
+
+# Coverage / test results
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Configuración local del asistente (no forma parte del proyecto)
+.claude/

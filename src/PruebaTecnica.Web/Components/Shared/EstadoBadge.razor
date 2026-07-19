@@ -1,0 +1,12 @@
+@* Badge visual para el estado VActiva de un movimiento. Nunca se muestra el booleano crudo. *@
+
+<span class="badge @(Activa ? "badge--success" : "badge--danger")">
+    <span class="badge__dot"></span>
+    @(Activa ? "Activa" : "Inactiva")
+</span>
+
+@code {
+    /// <summary>Valor de VActiva del movimiento a representar.</summary>
+    [Parameter, EditorRequired]
+    public bool Activa { get; set; }
+}
