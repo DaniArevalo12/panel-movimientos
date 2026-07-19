@@ -125,12 +125,6 @@ h1:focus {
         content: "An error has occurred."
     }
 
-#blazor-error-ui {
-    background: var(--color-danger-soft);
-    color: var(--color-danger);
-    border-top: 1px solid var(--color-danger);
-}
-
 /* =========================================================================
    Layout
    ========================================================================= */
@@ -359,7 +353,7 @@ h1:focus {
 
     .data-table thead th {
         text-align: left;
-        padding: 0.85rem 1.25rem;
+        padding: 0;
         background: var(--color-surface-alt);
         color: var(--color-text-muted);
         font-weight: 600;
@@ -370,14 +364,25 @@ h1:focus {
         white-space: nowrap;
     }
 
-        .data-table thead th.sortable {
-            cursor: pointer;
-            user-select: none;
-        }
+.th-sort-button {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 1.25rem;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    user-select: none;
+}
 
-            .data-table thead th.sortable:hover {
-                color: var(--color-primary);
-            }
+    .th-sort-button:hover,
+    .th-sort-button:focus-visible {
+        color: var(--color-primary);
+    }
 
     .data-table tbody td {
         padding: 0.85rem 1.25rem;

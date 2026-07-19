@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/PruebaTecnica.MockApi/PruebaTecnica.MockApi.csproj" />
+    <Project Path="src/PruebaTecnica.Web.Tests/PruebaTecnica.Web.Tests.csproj" />
     <Project Path="src/PruebaTecnica.Web/PruebaTecnica.Web.csproj" />
   </Folder>
 </Solution>

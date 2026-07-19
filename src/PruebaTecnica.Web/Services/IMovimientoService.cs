@@ -15,5 +15,5 @@ public interface IMovimientoService
     /// </summary>
     /// <param name="cancellationToken">Token para cancelar la operación (p. ej. al navegar fuera de la página).</param>
     /// <returns>Un <see cref="Result{T}"/> con la lista de movimientos o un mensaje de error legible.</returns>
-    Task<Result<IReadOnlyList<Movimiento>>> ObtenerMovimientosAsync(CancellationToken cancellationToken = default);
+    public Task<Result<IReadOnlyList<Movimiento>>> ObtenerMovimientosAsync(CancellationToken cancellationToken = default);
 }

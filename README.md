@@ -62,6 +62,8 @@ Movimientos.razor  →  IMovimientoService  →  MovimientoService  →  HttpCli
 ## Estructura del repositorio
 
 ```
+.editorconfig            Convenciones de estilo/nombres para dotnet format, el IDE y los analizadores.
+Directory.Build.props    Configuración MSBuild común a todos los proyectos (Nullable, analizadores, CA rules).
 src/
 ├── PruebaTecnica.Web/
 │   ├── Components/
@@ -75,9 +77,14 @@ src/
 │   ├── wwwroot/                  app.css, js/theme.js
 │   ├── appsettings.json
 │   └── Program.cs
-└── PruebaTecnica.MockApi/
-    ├── MovimientosDataSource.cs  Datos de ejemplo (20 movimientos, contrato PascalCase exacto)
-    └── Program.cs
+├── PruebaTecnica.Web.Tests/     Tests unitarios (xUnit) de MovimientoService y Result<T>
+├── PruebaTecnica.MockApi/
+│   ├── MovimientosDataSource.cs  Datos de ejemplo (20 movimientos, contrato PascalCase exacto)
+│   ├── MovimientoDto.cs
+│   └── Program.cs
+└── Shared/
+    └── RenderHostingExtensions.cs  Archivo .cs enlazado (no un proyecto) en ambos .csproj: boilerplate
+                                     de hosting para Render (variable PORT), no lógica de negocio.
 ```
 
 ## Cómo ejecutar
@@ -98,6 +105,12 @@ dotnet run --project src/PruebaTecnica.Web --launch-profile http
 
 `appsettings.json` de `PruebaTecnica.Web` ya apunta al mock (`http://localhost:5206`), así que con ambos procesos corriendo la grilla carga datos reales de un servicio HTTP independiente — no datos en memoria del propio proceso.
 
+Para correr los tests:
+
+```bash
+dotnet test
+```
+
 ## Conectar con la API real
 
 Cuando la URL oficial de la prueba técnica esté disponible, el único cambio necesario es `appsettings.json` (o `appsettings.Production.json` / variables de entorno en el hosting elegido):
@@ -116,7 +129,7 @@ No hace falta tocar código: `ApiSettings` se valida con `DataAnnotations` al ar
 
 ## Decisiones técnicas
 
-- **`Result<T>` en vez de excepciones para control de flujo.** `MovimientoService` captura `HttpRequestException`, `TaskCanceledException` (timeout) y `JsonException`, los loggea con `ILogger` y devuelve un `Result<T>.Failure(mensaje)`. La UI nunca hace `try/catch` de HTTP: reacciona a un valor tipado. Esto hace explícito, en la firma del método, que la operación puede fallar.
+- **`Result<T>` en vez de excepciones para control de flujo.** `MovimientoService` captura `HttpRequestException`, `TaskCanceledException`/`TimeoutRejectedException` (timeout, ya sea del propio `HttpClient` o de la estrategia de resiliencia de Polly), `BrokenCircuitException` (circuit breaker abierto), `JsonException` y, como red de seguridad final, `Exception` genérica — ningún fallo, ni siquiera uno no anticipado, debe escapar del servicio y tumbar el circuito de Blazor Server. Todo se loggea con `ILogger` (vía métodos `[LoggerMessage]` generados en tiempo de compilación, no interpolación clásica) y se traduce a `Result<T>.Failure(mensaje)`. La UI nunca hace `try/catch` de HTTP: reacciona a un valor tipado.
 - **Contrato JSON explícito con `[JsonPropertyName]`.** El modelo `Movimiento` fija los nombres exactos (`Codigo`, `Descripcion`, `VActiva`) en vez de depender de una política de naming implícita. Si el backend cambia el contrato, la deserialización falla de forma visible (los campos quedan en su valor por defecto y el log lo refleja) en vez de fallar en silencio.
 - **Resiliencia configurada en la composición raíz, no en el servicio.** `MovimientoService` no sabe nada de reintentos ni circuit breakers — eso es una responsabilidad transversal de infraestructura, configurada una sola vez en `Program.cs` vía `AddStandardResilienceHandler`. El servicio solo sabe pedir datos y traducir errores a `Result<T>`.
 - **Auto-refresco con `PeriodicTimer`, no `Timer` ni `setInterval` vía JS.** `PeriodicTimer` es cancelable de forma cooperativa con `CancellationToken`, evita reentrancia (no dispara un tick nuevo si el anterior sigue corriendo) y se libera correctamente en `DisposeAsync`, evitando fugas de memoria en un circuito de Blazor Server de larga duración.
@@ -129,17 +142,24 @@ No hace falta tocar código: `ApiSettings` se valida con `DataAnnotations` al ar
 - **OCP/DIP** — la UI depende de `IMovimientoService`, no de `MovimientoService` ni de `HttpClient`. Sustituir la fuente de datos no requiere tocar componentes.
 - **ISP** — `IMovimientoService` expone un único método coherente con su nombre; no hay interfaces "bolsa" con métodos que algunos consumidores no usan.
 
-✔ **Clean Code** — nombres descriptivos en español (dominio del negocio) y en inglés donde es idiomático (tipos de infraestructura); métodos pequeños con una responsabilidad; sin regiones; sin `var` cuando el tipo no es evidente en la lectura.
+✔ **Clean Code** — nombres descriptivos en español (dominio del negocio) y en inglés donde es idiomático (tipos de infraestructura); métodos pequeños con una responsabilidad; sin regiones; sin `var` cuando el tipo no es evidente en la lectura; cero duplicación entre los dos servicios desplegables (el boilerplate de hosting para Render vive en `src/Shared/`, no copiado dos veces).
 
-✔ **Rendimiento** — todo el flujo de datos es `async`/`await` de punta a punta; no hay bloqueos (`.Result`, `.Wait()`); el filtrado/ordenamiento client-side opera sobre listas ya materializadas en memoria (dataset pequeño por diseño del dominio); las transiciones CSS usan `transform`/`opacity` para no forzar reflow.
+✔ **Rendimiento** — todo el flujo de datos es `async`/`await` de punta a punta; no hay bloqueos (`.Result`, `.Wait()`); no hay solicitudes HTTP solapadas (una guarda de reentrancia evita que un tick de auto-refresco pise una petición manual en curso); el filtrado/ordenamiento client-side opera sobre listas ya materializadas en memoria (dataset pequeño por diseño del dominio) y se calcula una sola vez por render, no una vez por cada lugar donde se lee; el logging usa `[LoggerMessage]` (CA1848) en vez de las llamadas clásicas a `ILogger.LogXxx`; las transiciones CSS usan `transform`/`opacity` para no forzar reflow.
 
-✔ **Seguridad** — la `BaseUrl` de la API nunca está hardcodeada; se valida con `[Url]` al arrancar. No se interpola HTML sin escapar (Razor escapa por defecto). El paquete `Microsoft.OpenApi` transitivo se fijó a una versión sin vulnerabilidades conocidas (`dotnet list package` sin advertencias `NU1903`).
+✔ **Seguridad** — la `BaseUrl` de la API nunca está hardcodeada; se valida con `[Url]` al arrancar, con la misma validación aplicada de forma síncrona antes de configurar la resiliencia HTTP (para que un `TimeoutSeconds` inválido falle igual de rápido). Cabeceras `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` y `Permissions-Policy` en cada respuesta. No se interpola HTML sin escapar (Razor escapa por defecto). Los paquetes de terceros se verifican con `dotnet list package --vulnerable` (limpio) y `--outdated`; `Microsoft.OpenApi` se mantiene deliberadamente en 2.x (no en el 3.x disponible) porque es un salto de versión mayor sin CVEs pendientes en la versión actual, y `Microsoft.AspNetCore.OpenApi` de ASP.NET Core 10 está construido contra esa superficie de API.
+
+✔ **Accesibilidad** — encabezados de columna ordenables implementados como `<button>` real dentro del `<th>` (no `role="button"` sobre el propio `<th>`, que perdería su semántica de `columnheader`) con `aria-sort` reflejando el estado actual; estados de error con `role="alert"` para que un lector de pantalla los anuncie sin depender de que el usuario los encuentre visualmente; botón de tema y buscador con `aria-label` explícito (un `title` o un `placeholder` no son un nombre accesible confiable).
+
+✔ **Tests** — proyecto `PruebaTecnica.Web.Tests` (xUnit) cubre `MovimientoService` con un `HttpMessageHandler` falso: éxito, lista vacía, error de conexión, JSON malformado, timeout (propio y de Polly), circuit breaker abierto, cancelación del llamador y excepción no anticipada; más los invariantes de `Result<T>`.
+
+✔ **Analizadores / CA rules / IDE rules** — `EnableNETAnalyzers` + `AnalysisLevel=latest-Recommended` + `EnforceCodeStyleInBuild` activos en todo el repo vía `Directory.Build.props`; `.editorconfig` con convenciones de nombres (campos privados `_camelCase`, tipos `PascalCase`, interfaces con prefijo `I`) y de estilo; los warnings de nulabilidad se tratan como error. Las supresiones puntuales (`CA1000` en `Result<T>`, `CA1707` en el proyecto de tests) están documentadas con `Justification`, no silenciadas a ciegas.
 
 ✔ **Escalabilidad/Mantenibilidad** — agregar una nueva fuente de datos, un nuevo campo en la grilla o un nuevo estado de UI no requiere tocar más de un archivo por cambio, gracias a la separación Services/Models/Components.
 
 ## Posibles mejoras futuras
 
-- Tests unitarios de `MovimientoService` (con `HttpMessageHandler` mockeado) y tests de componente (`bUnit`) para `Movimientos.razor`.
+- Tests de componente (`bUnit`) para `Movimientos.razor` (los tests actuales cubren la capa de servicio; falta la interacción usuario→UI: búsqueda, ordenamiento, auto-refresco).
+- CSP con nonce por request (hoy se añaden cabeceras de seguridad de bajo riesgo; una CSP completa requiere inyectar un nonce en el script inline de `App.razor` y no se implementó para no arriesgar una regresión sin poder validarla visualmente en este entorno).
 - Paginación server-side si el catálogo real crece más allá de unos cientos de registros (hoy el dataset es pequeño y paginar en memoria sería ruido).
 - Métricas de resiliencia (`Microsoft.Extensions.Http.Resilience` ya emite telemetría vía `OpenTelemetry`) conectadas a un panel de observabilidad.
 - Autenticación/autorización si la API real la requiere (hoy no está en el alcance del enunciado).

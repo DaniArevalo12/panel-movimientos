@@ -5,6 +5,7 @@
 <button type="button"
         class="btn btn--icon"
         title="@(_esOscuro ? "Cambiar a tema claro" : "Cambiar a tema oscuro")"
+        aria-label="@(_esOscuro ? "Cambiar a tema claro" : "Cambiar a tema oscuro")"
         @onclick="AlternarTemaAsync">
     @if (_esOscuro)
     {

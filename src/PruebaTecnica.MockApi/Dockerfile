@@ -2,11 +2,15 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY src/PruebaTecnica.MockApi/PruebaTecnica.MockApi.csproj src/PruebaTecnica.MockApi/
-RUN dotnet restore src/PruebaTecnica.MockApi/PruebaTecnica.MockApi.csproj
-
+# Se copia el proyecto completo ANTES de restaurar (ver el comentario detallado en
+# src/PruebaTecnica.Web/Dockerfile): separar "copiar .csproj, restaurar, copiar el resto"
+# corrompe la resolución de static web assets del framework en proyectos Blazor. Este
+# proyecto no sirve contenido estático propio, pero se mantiene el mismo patrón por
+# consistencia entre ambos Dockerfile y para no depender de un orden de capas frágil.
+COPY Directory.Build.props ./
+COPY src/Shared/ src/Shared/
 COPY src/PruebaTecnica.MockApi/ src/PruebaTecnica.MockApi/
-RUN dotnet publish src/PruebaTecnica.MockApi/PruebaTecnica.MockApi.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish src/PruebaTecnica.MockApi/PruebaTecnica.MockApi.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app

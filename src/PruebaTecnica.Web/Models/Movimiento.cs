@@ -5,8 +5,10 @@ namespace PruebaTecnica.Web.Models;
 /// <summary>
 /// Representa un movimiento tal como lo expone la API externa.
 /// Es un modelo de solo lectura: la UI únicamente lo consulta, nunca lo muta.
+/// Se modela como <c>record</c> por tratarse de un DTO inmutable: obtiene igualdad por
+/// valor, <c>ToString()</c> legible y expresiones <c>with</c> sin código adicional.
 /// </summary>
-public sealed class Movimiento
+public sealed record Movimiento
 {
     [JsonPropertyName("Codigo")]
     public int Codigo { get; init; }

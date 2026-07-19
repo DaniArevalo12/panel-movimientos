@@ -1,0 +1,32 @@
+<Project>
+
+  <!--
+    Configuración común a todos los proyectos de la solución (Directory.Build.props se aplica
+    automáticamente sin necesidad de importarlo). Centralizarla aquí evita repetirla —y que
+    diverja— en cada .csproj.
+  -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Analizadores de .NET (CA rules) activos con el conjunto recomendado, más el análisis
+         de estilo (IDE rules) también aplicado durante el build, no solo en el editor. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Habilita IDE0005 (using innecesarios) y genera el XML de documentación para la
+         superficie pública que sí la tiene (interfaces, modelos, opciones). No es un paquete
+         NuGet distribuido, así que CS1591 (falta comentario XML) se suprime deliberadamente:
+         exigir doc en cada miembro de cada componente Razor sería ruido, no señal. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!-- Los warnings de nulabilidad se tratan como error: es la categoría de analizador con
+         mayor señal/ruido de todo el conjunto, y dejarla como "warning" en la práctica
+         significa que nadie los lee. El resto de reglas de análisis queda como advertencia
+         para no bloquear el build por cuestiones de estilo menores. -->
+    <WarningsAsErrors>Nullable</WarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

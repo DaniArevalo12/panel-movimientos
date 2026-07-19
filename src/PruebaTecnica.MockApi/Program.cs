@@ -1,5 +1,6 @@
 using System.Text.Json;
 using PruebaTecnica.MockApi;
+using PruebaTecnica.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,15 +8,7 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Plataformas tipo Render/Heroku asignan el puerto dinámicamente vía la variable PORT
-// y terminan TLS en su propio borde, reenviando tráfico HTTP plano al contenedor.
-var puertoAsignadoPorPlataforma = Environment.GetEnvironmentVariable("PORT");
-var ejecutandoDetrasDeProxyExterno = !string.IsNullOrEmpty(puertoAsignadoPorPlataforma);
-if (ejecutandoDetrasDeProxyExterno)
-{
-    app.Urls.Clear();
-    app.Urls.Add($"http://0.0.0.0:{puertoAsignadoPorPlataforma}");
-}
+var ejecutandoDetrasDeProxyExterno = app.UsarPuertoDePlataformaSiAplica();
 
 if (app.Environment.IsDevelopment())
 {
@@ -42,5 +35,11 @@ app.MapGet("/api/movimientos", async () =>
     return Results.Json(MovimientosDataSource.Todos, contratoOrigenOptions);
 })
 .WithName("GetMovimientos");
+
+// Endpoint de health check sin la latencia artificial de arriba: los health checks de la
+// plataforma de hosting deben responder rápido y de forma predecible, no simular al backend real.
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
+    .WithName("HealthCheck")
+    .ExcludeFromDescription();
 
 app.Run();
