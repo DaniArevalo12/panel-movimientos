@@ -20,4 +20,11 @@ public sealed class ApiSettings
 
     [Range(1, 120, ErrorMessage = "ApiSettings:TimeoutSeconds debe estar entre 1 y 120 segundos.")]
     public int TimeoutSeconds { get; init; } = 15;
+
+    /// <summary>
+    /// Token para autenticación Bearer contra la API externa. Opcional a propósito: el mock local
+    /// no la requiere. Nunca se guarda en appsettings.json ni en el repositorio; se inyecta vía
+    /// variable de entorno (<c>ApiSettings__BearerToken</c>) tanto en local como en el hosting.
+    /// </summary>
+    public string? BearerToken { get; init; }
 }

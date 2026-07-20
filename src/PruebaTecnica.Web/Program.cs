@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Net.Http.Headers;
 using Microsoft.Extensions.Options;
 using PruebaTecnica.Shared;
 using PruebaTecnica.Web.Components;
@@ -42,6 +43,11 @@ builder.Services.AddHttpClient<IMovimientoService, MovimientoService>((servicePr
     // subruta. Sin esto, una BaseUrl con un prefijo de ruta (p. ej. "https://api.acme.com/erp")
     // perdería silenciosamente ese prefijo al combinarse con el endpoint.
     client.BaseAddress = new Uri(apiSettings.BaseUrl.TrimEnd('/') + "/");
+
+    if (!string.IsNullOrWhiteSpace(apiSettings.BearerToken))
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiSettings.BearerToken);
+    }
 })
 .AddStandardResilienceHandler(options =>
 {
