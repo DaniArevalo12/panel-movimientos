@@ -1,6 +1,13 @@
 # Blueprint de Render (https://render.com/docs/blueprint-spec).
-# Despliega los dos servicios en el plan gratuito: la API mock y la app Blazor,
-# ya conectadas entre sí mediante ApiSettings__BaseUrl.
+#
+# pruebatecnica-mockapi se mantiene desplegado como respaldo/demo local (no requiere token),
+# pero pruebatecnica-web apunta a la API real que entregó el equipo técnico.
+#
+# IMPORTANTE: ApiSettings__BearerToken NO se declara aquí a propósito. Este archivo se sube a
+# GitHub, así que cualquier valor puesto en "envVars" con "value:" queda en el historial del
+# repo. El token se configura únicamente en el dashboard de Render (Environment del servicio
+# pruebatecnica-web) — Render solo re-sincroniza las claves que este blueprint declara
+# explícitamente, así que una variable ausente aquí nunca se sobrescribe ni se expone.
 services:
   - type: web
     name: pruebatecnica-mockapi
@@ -19,11 +26,8 @@ services:
     healthCheckPath: /
     envVars:
       - key: ApiSettings__Endpoint
-        value: /api/movimientos
+        value: /DocumentosFillsCombos
       - key: ApiSettings__TimeoutSeconds
         value: "20"
-      # Render asigna el subdominio a partir de "name" (puede llevar un sufijo si ya está tomado).
-      # Verifica la URL real del servicio pruebatecnica-mockapi en el dashboard tras el primer
-      # despliegue y ajusta este valor si difiere.
       - key: ApiSettings__BaseUrl
-        value: https://pruebatecnica-mockapi.onrender.com
+        value: https://mainserver.ziursoftware.com/Ziur.API/basedatos_01/ZiurServiceRest.svc/api
