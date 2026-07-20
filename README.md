@@ -5,11 +5,10 @@ Blazor Web App (.NET 10, modo interactivo Server) que consume una API REST y mue
 ## Demo en vivo
 
 - **Aplicación**: https://pruebatecnica-web.onrender.com
-- **API consumida** (mock, ver nota abajo): https://pruebatecnica-mockapi.onrender.com/api/movimientos
 
-Las dos corren en el plan gratuito de Render, que duerme el servicio tras ~15 minutos sin tráfico. Si la primera carga tarda 30-60 segundos, es el contenedor reactivándose, no un fallo.
+Corre en el plan gratuito de Render, que duerme el servicio tras ~15 minutos sin tráfico. Si la primera carga tarda 30-60 segundos, es el contenedor reactivándose, no un fallo.
 
-No recibí una URL real de la API para esta prueba, solo el formato de JSON esperado. Por eso el repo incluye `PruebaTecnica.MockApi`, un backend propio que reproduce ese mismo contrato, para poder entregar la aplicación funcionando contra un servicio HTTP real en vez de datos en memoria. Si la URL oficial aparece más adelante, el cambio para conectarla está descrito en [Conectar con la API real](#conectar-con-la-api-real) y no toca una sola línea de código.
+**El proyecto consume la API oficial entregada por ZiurSoftware.** `PruebaTecnica.MockApi` fue utilizado únicamente durante el desarrollo, cuando aún no se disponía del endpoint, y se conserva en el repositorio como herramienta para pruebas locales — no es parte del entregable en producción. Ver [Cómo ejecutar](#cómo-ejecutar).
 
 > **Sobre la versión de .NET:** el enunciado pedía .NET 9. Esta máquina solo tenía el SDK de .NET 10 instalado, así que el proyecto apunta a `net10.0`. No usa nada exclusivo de esa versión — migrar a `net9.0` es cambiar el `TargetFramework` en los `.csproj` con el SDK correspondiente ya instalado.
 
@@ -77,7 +76,8 @@ No usé un UI kit como MudBlazor: la app tiene una tabla, un buscador y unos bot
 .editorconfig            Convenciones de estilo/nombres para dotnet format, el IDE y los analizadores.
 .dockerignore             Excluye bin/obj del contexto de build de Docker.
 Directory.Build.props    Configuración MSBuild común a todos los proyectos (Nullable, analizadores, CA rules).
-render.yaml               Blueprint de Render: despliega Web y MockApi ya conectados entre sí.
+render.yaml               Blueprint de Render: despliega pruebatecnica-web (consume la API oficial)
+                           y pruebatecnica-mockapi (desplegado aparte, solo como respaldo).
 DEPLOY.md                 Guía paso a paso del despliegue en Render.
 src/
 ├── PruebaTecnica.Web/
@@ -130,23 +130,26 @@ dotnet test
 
 ## Despliegue
 
-Ambos servicios corren en Render (plan gratuito) desde `render.yaml`: el blueprint crea `pruebatecnica-mockapi` y `pruebatecnica-web` y los conecta entre sí solo. La guía paso a paso está en [DEPLOY.md](DEPLOY.md).
+Ambos servicios corren en Render (plan gratuito) desde `render.yaml`: el blueprint crea `pruebatecnica-mockapi` y `pruebatecnica-web`. `pruebatecnica-web` está configurado para consumir la API real — `BaseUrl` y `Endpoint` se declaran en `render.yaml`, pero el Bearer token se configura únicamente en el dashboard de Render (Environment del servicio), nunca en el archivo, porque `render.yaml` está en el repositorio público. La guía paso a paso está en [DEPLOY.md](DEPLOY.md).
 
 ## Conectar con la API real
 
-Cuando aparezca la URL oficial de la prueba, el único cambio necesario es en `appsettings.json` (o `appsettings.Production.json` / variables de entorno del hosting):
+`ApiSettings` soporta autenticación Bearer opcional. Para apuntar a cualquier API (la real o una nueva), el único cambio es configuración — nunca código — vía `appsettings.json`, `appsettings.Production.json`, o variables de entorno:
 
 ```json
 {
   "ApiSettings": {
     "BaseUrl": "https://api-real.example.com",
     "Endpoint": "/api/movimientos",
-    "TimeoutSeconds": 15
+    "TimeoutSeconds": 15,
+    "BearerToken": "..."
   }
 }
 ```
 
-No hay que tocar código. `ApiSettings` se valida con `DataAnnotations` al arrancar (`ValidateOnStart`), así que una URL faltante o mal escrita hace fallar el arranque con un mensaje claro en vez de un error confuso más adelante. `PruebaTecnica.MockApi` se puede quitar de la solución sin que `PruebaTecnica.Web` se entere.
+`BearerToken` es opcional a propósito: si está vacío, `MovimientoService` no manda cabecera `Authorization` (así el mock local, que no la requiere, sigue funcionando sin cambios). Cuando tiene valor, se agrega como `Bearer <token>` al `HttpClient` en el momento de construirlo. Nunca se guarda en `appsettings.json` ni se commitea — en producción se inyecta como variable de entorno (`ApiSettings__BearerToken`).
+
+`ApiSettings` se valida con `DataAnnotations` al arrancar (`ValidateOnStart`), así que una URL faltante o mal escrita hace fallar el arranque con un mensaje claro en vez de un error confuso más adelante. `PruebaTecnica.MockApi` se puede quitar de la solución sin que `PruebaTecnica.Web` se entere.
 
 ## Decisiones técnicas
 
@@ -168,7 +171,7 @@ No hay que tocar código. `ApiSettings` se valida con `DataAnnotations` al arran
 
 **Rendimiento.** Todo el flujo de datos es `async`/`await` de punta a punta, sin bloqueos (`.Result`, `.Wait()`). Una guarda de reentrancia evita que un tick de auto-refresco y un clic manual disparen peticiones solapadas. El filtrado y ordenamiento de la tabla se calcula una sola vez por render, no una vez por cada lugar del markup que lo usa. El logging usa `[LoggerMessage]` (CA1848) en vez de las llamadas clásicas a `ILogger`.
 
-**Seguridad.** La `BaseUrl` de la API nunca está hardcodeada — se valida con `[Url]` al arrancar, y esa misma validación corre de forma síncrona antes de configurar la resiliencia HTTP, para que un `TimeoutSeconds` inválido falle igual de rápido. Cada respuesta lleva cabeceras `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` y `Permissions-Policy`. Razor escapa HTML por defecto, así que no hay interpolación cruda. Los paquetes de terceros se revisaron con `dotnet list package --vulnerable` (limpio) y `--outdated`; `Microsoft.OpenApi` se quedó deliberadamente en 2.x en vez del 3.x disponible, porque es un salto de versión mayor sin CVEs pendientes en la versión actual, y `Microsoft.AspNetCore.OpenApi` de ASP.NET Core 10 está construido contra esa superficie de API.
+**Seguridad.** La `BaseUrl` de la API nunca está hardcodeada — se valida con `[Url]` al arrancar, y esa misma validación corre de forma síncrona antes de configurar la resiliencia HTTP, para que un `TimeoutSeconds` inválido falle igual de rápido. El Bearer token de la API real no vive en ningún archivo del repositorio (ni en `appsettings.json`, ni en `render.yaml`): se inyecta como variable de entorno solo en el hosting, así que nunca queda expuesto en el historial de git de un repo público. Cada respuesta lleva cabeceras `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` y `Permissions-Policy`. Razor escapa HTML por defecto, así que no hay interpolación cruda. Los paquetes de terceros se revisaron con `dotnet list package --vulnerable` (limpio) y `--outdated`; `Microsoft.OpenApi` se quedó deliberadamente en 2.x en vez del 3.x disponible, porque es un salto de versión mayor sin CVEs pendientes en la versión actual, y `Microsoft.AspNetCore.OpenApi` de ASP.NET Core 10 está construido contra esa superficie de API.
 
 **Accesibilidad.** Los encabezados de columna ordenables son un `<button>` real dentro del `<th>`, no un `role="button"` puesto sobre el propio `<th>` (eso le habría quitado su semántica de `columnheader`), con `aria-sort` reflejando el estado actual. Los estados de error usan `role="alert"` para que un lector de pantalla los anuncie sin que el usuario tenga que encontrarlos visualmente. El botón de tema y el buscador llevan `aria-label` explícito, porque un `title` o un `placeholder` no son un nombre accesible confiable.
 
